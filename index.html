@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fire years in Victoria</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Public+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root {
+  --ash: #E6EAED;
+  --panel: #F6F8F9;
+  --ink: #17212B;
+  --slate: #566676;
+  --rule: #C6CFD6;
+  --nodata: #ECEFF1;
+  --zero: #DCE2E7;
+  --flag: #2446D6;
+  --ember-0: #F6E3A1;
+  --ember-1: #F2B25C;
+  --ember-2: #E4702B;
+  --ember-3: #B8321B;
+  --ember-4: #5E1410;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--ash); }
+body {
+  margin: 0; padding: 28px clamp(16px, 3vw, 40px) 48px;
+  font: 400 15px/1.5 var(--body); color: var(--ink);
+}
+h1, h2 { font-family: var(--display); margin: 0; }
+h1 {
+  font-weight: 850; font-stretch: 118%; letter-spacing: -0.01em;
+  font-size: clamp(30px, 4.4vw, 52px); line-height: 1.02;
+}
+h2 { font-weight: 700; font-stretch: 100%; font-size: 20px; line-height: 1.2; }
+.lede { margin: 10px 0 0; max-width: 56ch; color: var(--slate); font-size: 16px; }
+button, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+#notice {
+  margin: 18px 0 0; padding: 10px 14px; max-width: 78ch;
+  border-left: 4px solid var(--flag); background: var(--panel);
+}
+#notice p { margin: 0; }
+#notice p + p { margin-top: 4px; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin: 22px 0 18px; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  border: 1px solid var(--rule); background: var(--panel); border-radius: 999px;
+  padding: 6px 14px; cursor: pointer;
+}
+.chip:hover { border-color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+.sens { color: var(--slate); display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.sens select { border: 1px solid var(--rule); background: var(--panel); border-radius: 6px; padding: 5px 8px; color: var(--ink); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1fr); gap: 22px; align-items: start; }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 20px; }
+.hint { margin: 6px 0 14px; color: var(--slate); max-width: 62ch; }
+
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 12px; color: var(--slate); font-size: 13px; }
+.legend .bar {
+  display: inline-block; vertical-align: -1px; width: 150px; height: 10px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--ember-0), var(--ember-1) 25%, var(--ember-2) 50%, var(--ember-3) 75%, var(--ember-4));
+}
+.legend .sw { display: inline-block; width: 12px; height: 10px; vertical-align: -1px; margin-right: 6px; border-radius: 1px; }
+
+.ledger-wrap { position: relative; }
+#ledger svg { display: block; width: 100%; }
+#ledger text { font: 400 11px var(--body); fill: var(--slate); }
+#yearBtns .yr {
+  position: absolute; left: 0; width: 40px; padding: 0; border: 0; background: none;
+  text-align: left; font: 400 12px/1 var(--body); color: var(--slate); cursor: pointer;
+}
+#yearBtns .yr:hover { color: var(--ink); }
+#yearBtns .yr[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
+#status { min-height: 1.4em; margin: 8px 0 0; color: var(--slate); font-size: 13px; }
+#status.error { color: #9B1C0F; }
+
+.periods-head { margin-top: 26px; }
+#periods { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; max-width: 70ch; }
+#periods button {
+  display: grid; grid-template-columns: 11.5em 1fr; gap: 4px 14px; width: 100%;
+  text-align: left; background: none; border: 0; border-top: 1px solid var(--rule);
+  padding: 9px 4px; cursor: pointer;
+}
+#periods button:hover { background: #ECF0F3; }
+#periods .when { font-weight: 600; }
+#periods .what { color: var(--slate); }
+
+.map-panel { position: sticky; top: 16px; padding: 16px; }
+.map-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; margin-bottom: 10px; }
+#mapCaption { margin: 0; color: var(--slate); font-size: 13px; }
+#map { height: min(62vh, 620px); min-height: 320px; border-radius: 6px; background: #D8DEE3; }
+#map .leaflet-tile-pane { filter: grayscale(1) contrast(0.85) brightness(1.08); }
+#map .fallback { padding: 16px; color: var(--slate); }
+.map-foot { margin: 10px 0 0; color: var(--slate); font-size: 13px; }
+
+.method { margin: 26px 0 0; max-width: 84ch; color: var(--slate); font-size: 13.5px; }
+.method h2 { font-size: 15px; color: var(--ink); margin-bottom: 4px; }
+.method p { margin: 0 0 6px; }
+
+#tip {
+  position: fixed; z-index: 1000; pointer-events: none; max-width: 240px;
+  background: var(--ink); color: var(--panel); padding: 7px 10px; border-radius: 6px; font-size: 13px; line-height: 1.35;
+}
+#tip b { font-weight: 600; }
+.leaflet-tooltip { font: 400 13px var(--body); }
+
+@media (max-width: 980px) {
+  .layout { grid-template-columns: 1fr; }
+  .map-panel { position: static; order: 2; }
+  .sens { margin-left: 0; }
+  #periods button { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Fire years in Victoria</h1>
+  <p class="lede">Satellite fire detections from MODIS and VIIRS, brought onto one scale so every day can be compared with every other.</p>
+</header>
+
+<div id="notice" hidden></div>
+
+<div class="controls">
+  <div class="presets" id="presets" role="group" aria-label="Area to explore"></div>
+  <button class="chip" id="draw" type="button" aria-pressed="false">Draw an area on the map</button>
+  <label class="sens">Unusual-day flags
+    <select id="sens">
+      <option value="1.5">More flags</option>
+      <option value="2" selected>Standard</option>
+      <option value="3">Fewer flags</option>
+    </select>
+  </label>
+</div>
+
+<div class="layout">
+  <section class="panel" aria-labelledby="h-ledger">
+    <h2 id="h-ledger">Burning activity by day</h2>
+    <p class="hint">Each row is a year, read left to right from January to December. Darker cells mean more detections. A blue mark under a cell flags a day that is unusual for that time of year. Select a day or a year to see it on the map.</p>
+    <div class="legend" aria-hidden="true">
+      <span>Fewer <span class="bar"></span> More</span>
+      <span><span class="sw" style="background:var(--zero)"></span>No detections</span>
+      <span><span class="sw" style="background:var(--nodata)"></span>No data loaded</span>
+      <span><span class="sw" style="background:var(--flag);height:3px;vertical-align:2px"></span>Unusual day</span>
+    </div>
+    <div class="ledger-wrap">
+      <div id="yearBtns"></div>
+      <div id="ledger"></div>
+    </div>
+    <p id="status" role="status" aria-live="polite"></p>
+
+    <h2 class="periods-head" id="h-periods">Unusual periods</h2>
+    <p class="hint" id="periodsHint"></p>
+    <ol id="periods" aria-labelledby="h-periods"></ol>
+  </section>
+
+  <aside class="panel map-panel" aria-labelledby="h-map">
+    <div class="map-head">
+      <h2 id="h-map">Where it burned</h2>
+      <p id="mapCaption"></p>
+    </div>
+    <div id="map"></div>
+    <p class="map-foot" id="mapFoot"></p>
+  </aside>
+</div>
+
+<section class="method" id="method" aria-labelledby="h-method"></section>
+<div id="tip" role="tooltip" hidden></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+
+/* ---------- constants ---------- */
+const VIC = { west: 140.9, south: -39.2, east: 150.0, north: -33.9 };
+// approximate boxes, good enough for exploring
+const PRESETS = [
+  { label: "Whole state", bbox: VIC },
+  { label: "Gippsland", bbox: { west: 145.6, south: -38.9, east: 150.0, north: -37.2 } },
+  { label: "North East alps", bbox: { west: 146.0, south: -37.5, east: 148.6, north: -36.0 } },
+  { label: "Grampians", bbox: { west: 141.9, south: -37.6, east: 143.1, north: -36.7 } },
+  { label: "Otways", bbox: { west: 143.0, south: -38.9, east: 144.2, north: -38.2 } },
+];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_COLS = [1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336]; // leap-year day numbers
+const DAY = 86400000;
+const STOPS = [[0,"#F6E3A1"],[0.25,"#F2B25C"],[0.5,"#E4702B"],[0.75,"#B8321B"],[1,"#5E1410"]];
+const ZERO = "#DCE2E7", NODATA = "#ECEFF1", FLAG = "#2446D6";
+const MAX_PERIODS = 12;
+
+const state = {
+  meta: null, data: null, bbox: VIC, z: 2, cal: null, led: null,
+  selIdx: null, selYear: null, cellsReq: 0, lastWidth: 0,
+};
+
+/* ---------- colour + formatting helpers ---------- */
+const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const STOP_RGB = STOPS.map(([t, h]) => [t, hex2rgb(h)]);
+function ramp(t) {
+  t = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < STOP_RGB.length; i++) {
+    if (t <= STOP_RGB[i][0]) {
+      const [t0, a] = STOP_RGB[i - 1], [t1, b] = STOP_RGB[i], f = (t - t0) / (t1 - t0);
+      return "rgb(" + a.map((v, j) => Math.round(v + (b[j] - v) * f)).join(",") + ")";
+    }
+  }
+  return STOPS[STOPS.length - 1][1];
+}
+const heat = (v, cap) => (v > 0 ? ramp(Math.sqrt(v / cap)) : null);
+function p99(vals) {
+  const p = vals.filter((v) => v > 0).sort((a, b) => a - b);
+  return p.length ? p[Math.min(p.length - 1, Math.floor(p.length * 0.99))] : 1;
+}
+const parseDay = (s) => { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d); };
+const fmtDate = (ms, o) => new Date(ms).toLocaleDateString("en-AU", Object.assign({ timeZone: "UTC" }, o));
+const fullDate = (ms) => fmtDate(ms, { day: "numeric", month: "short", year: "numeric" });
+const fmtNum = (v) => (v >= 100 ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString("en-AU");
+const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---------- data model for the ledger ---------- */
+function buildLedger(cal) {
+  const t0 = parseDay(cal.start), n = cal.activity.length;
+  const y0 = new Date(t0).getUTCFullYear(), y1 = new Date(t0 + (n - 1) * DAY).getUTCFullYear();
+  const years = [];
+  for (let y = y0; y <= y1; y++) years.push(y);
+  // column 1..366; non-leap years leave column 60 (29 Feb) empty so months line up across years
+  const grid = years.map(() => new Int32Array(367).fill(-1));
+  for (let i = 0; i < n; i++) {
+    const ms = t0 + i * DAY, y = new Date(ms).getUTCFullYear();
+    const doy = Math.floor((ms - Date.UTC(y, 0, 1)) / DAY) + 1;
+    const col = doy + (!isLeap(y) && doy >= 60 ? 1 : 0);
+    grid[y - y0][col] = i;
+  }
+  return { t0, n, years, y0, grid };
+}
+
+function findPeriods(cal) {
+  const periods = []; let cur = null;
+  for (let i = 0; i < cal.flag.length; i++) {
+    if (!cal.flag[i]) continue;
+    if (cur && i - cur.end <= 3) cur.end = i;
+    else { cur = { start: i, end: i }; periods.push(cur); }
+  }
+  for (const p of periods) {
+    let peak = p.start, tot = 0;
+    for (let i = p.start; i <= p.end; i++) { tot += cal.activity[i]; if (cal.activity[i] > cal.activity[peak]) peak = i; }
+    p.peak = peak; p.total = tot; p.z = cal.z[peak];
+  }
+  return periods.sort((a, b) => b.total - a.total);
+}
+
+function periodLabel(led, p) {
+  const a = led.t0 + p.start * DAY, b = led.t0 + p.end * DAY;
+  if (p.start === p.end) return fullDate(a);
+  const da = new Date(a), db = new Date(b);
+  if (da.getUTCFullYear() === db.getUTCFullYear() && da.getUTCMonth() === db.getUTCMonth())
+    return da.getUTCDate() + "\u2013" + fmtDate(b, { day: "numeric", month: "short", year: "numeric" });
+  return fullDate(a) + " to " + fullDate(b);
+}
+
+/* ---------- ledger rendering ---------- */
+const GEO = { left: 44, right: 6, top: 20, rh: 14, strip: 3, gap: 3 };
+function ledgerGeometry(width, nYears) {
+  const g = Object.assign({}, GEO);
+  g.pw = Math.max(200, width - g.left - g.right);
+  g.cw = g.pw / 366;
+  g.step = g.rh + g.strip + g.gap;
+  g.h = g.top + nYears * g.step + 4;
+  return g;
+}
+
+function renderLedger() {
+  const { cal, led } = state, box = $("#ledger"), btns = $("#yearBtns");
+  if (!cal || !led || !led.n) { box.innerHTML = ""; btns.innerHTML = ""; return; }
+  const width = box.clientWidth || 900;
+  state.lastWidth = width;
+  const g = ledgerGeometry(width, led.years.length);
+  const cap = p99(cal.activity);
+  const parts = [];
+  parts.push('<svg viewBox="0 0 ' + width + " " + g.h + '" width="' + width + '" height="' + g.h +
+    '" role="img" aria-label="Calendar of burning activity, one row per year, ' + led.years[0] + " to " +
+    led.years[led.years.length - 1] + '. Use the unusual periods list below for a keyboard-friendly view.">');
+  MONTH_COLS.forEach((c, i) => {
+    parts.push('<text x="' + (g.left + (c - 1) * g.cw).toFixed(1) + '" y="12">' + MONTHS[i] + "</text>");
+  });
+  led.years.forEach((yr, r) => {
+    const y = g.top + r * g.step;
+    parts.push('<rect x="' + g.left + '" y="' + y + '" width="' + g.pw.toFixed(1) + '" height="' + g.rh + '" fill="' + NODATA + '"/>');
+    const row = led.grid[r];
+    for (let c = 1; c <= 366; c++) {
+      const i = row[c];
+      if (i < 0) continue;
+      const x = g.left + (c - 1) * g.cw;
+      parts.push('<rect x="' + x.toFixed(2) + '" y="' + y + '" width="' + (g.cw + 0.35).toFixed(2) + '" height="' + g.rh +
+        '" fill="' + (heat(cal.activity[i], cap) || ZERO) + '"/>');
+      if (cal.flag[i]) {
+        parts.push('<rect x="' + x.toFixed(2) + '" y="' + (y + g.rh + 1) + '" width="' + Math.max(g.cw, 2).toFixed(2) +
+          '" height="' + g.strip + '" fill="' + FLAG + '"/>');
+      }
+    }
+  });
+  parts.push('<g id="selmark"></g></svg>');
+  box.innerHTML = parts.join("");
+  box._geo = g;
+
+  btns.innerHTML = led.years.map((yr, r) =>
+    '<button type="button" class="yr" data-year="' + yr + '" style="top:' + (g.top + r * g.step) + "px;height:" + (g.rh + g.strip) +
+    'px" aria-pressed="' + (state.selYear === yr) + '" aria-label="Show ' + yr + ' on the map">' + yr + "</button>").join("");
+  drawSelection();
+}
+
+function drawSelection() {
+  const mark = $("#selmark"), box = $("#ledger");
+  if (!mark || !box._geo || state.selIdx == null) { if (mark) mark.innerHTML = ""; return; }
+  const g = box._geo, led = state.led, ms = led.t0 + state.selIdx * DAY, d = new Date(ms);
+  const y = d.getUTCFullYear(), doy = Math.floor((ms - Date.UTC(y, 0, 1)) / DAY) + 1;
+  const col = doy + (!isLeap(y) && doy >= 60 ? 1 : 0);
+  const r = y - led.y0;
+  mark.innerHTML = '<rect x="' + (g.left + (col - 1) * g.cw - 1).toFixed(2) + '" y="' + (g.top + r * g.step - 1) +
+    '" width="' + (g.cw + 2).toFixed(2) + '" height="' + (g.rh + g.strip + 2) + '" fill="none" stroke="#17212B" stroke-width="1.6"/>';
+}
+
+function indexAt(ev) {
+  const box = $("#ledger"), g = box._geo, led = state.led;
+  if (!g || !led) return -1;
+  const rect = box.getBoundingClientRect();
+  const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+  const col = Math.floor((x - g.left) / g.cw) + 1, r = Math.floor((y - g.top) / g.step);
+  if (col < 1 || col > 366 || r < 0 || r >= led.years.length) return -1;
+  if (y - g.top - r * g.step > g.rh + g.strip) return -1;
+  return led.grid[r][col];
+}
+
+function wireLedger() {
+  const box = $("#ledger"), tip = $("#tip");
+  box.addEventListener("mousemove", (ev) => {
+    const i = indexAt(ev);
+    if (i < 0) { tip.hidden = true; return; }
+    const { cal, led } = state;
+    let html = "<b>" + fullDate(led.t0 + i * DAY) + "</b><br>" +
+      (cal.activity[i] > 0 ? fmtNum(cal.activity[i]) + " detections" : "No detections");
+    if (cal.flag[i]) html += "<br>Unusual for this time of year";
+    tip.innerHTML = html; tip.hidden = false;
+    tip.style.left = Math.min(ev.clientX + 14, window.innerWidth - 250) + "px";
+    tip.style.top = ev.clientY + 16 + "px";
+  });
+  box.addEventListener("mouseleave", () => { tip.hidden = true; });
+  box.addEventListener("click", (ev) => {
+    const i = indexAt(ev);
+    if (i < 0) return;
+    state.selIdx = state.selIdx === i ? null : i;
+    state.selYear = null;
+    afterSelection();
+  });
+  $("#yearBtns").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button.yr");
+    if (!b) return;
+    const yr = Number(b.dataset.year);
+    state.selYear = state.selYear === yr ? null : yr;
+    state.selIdx = null;
+    afterSelection();
+  });
+}
+
+function afterSelection() {
+  drawSelection();
+  document.querySelectorAll("#yearBtns .yr").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.year) === state.selYear)));
+  loadCells();
+}
+
+/* ---------- unusual periods ---------- */
+function renderPeriods() {
+  const { cal, led } = state, ol = $("#periods"), hint = $("#periodsHint");
+  if (!cal || !led || !led.n) { ol.innerHTML = ""; hint.textContent = ""; return; }
+  const periods = findPeriods(cal);
+  if (!periods.length) {
+    hint.textContent = "No unusual days in this area. Try a larger area or choose more flags.";
+    ol.innerHTML = ""; return;
+  }
+  const shown = periods.slice(0, MAX_PERIODS);
+  hint.textContent = periods.length > shown.length
+    ? "The " + shown.length + " largest of " + periods.length + ". Select one to see it on the map."
+    : periods.length + (periods.length === 1 ? " period" : " periods") + ", largest first. Select one to see it on the map.";
+  ol.innerHTML = shown.map((p) =>
+    '<li><button type="button" data-peak="' + p.peak + '"><span class="when">' + esc(periodLabel(led, p)) + "</span>" +
+    '<span class="what">Busiest day ' + fmtDate(led.t0 + p.peak * DAY, { day: "numeric", month: "short" }) + " with " +
+    fmtNum(cal.activity[p.peak]) + " detections, " + p.z.toFixed(1) + " standard deviations above usual.</span></button></li>").join("");
+}
+
+/* ---------- map ---------- */
+let map = null, cellLayer = null, aoiLayer = null;
+const mapOK = () => typeof L !== "undefined" && map;
+
+function initMap() {
+  if (typeof L === "undefined") {
+    $("#map").innerHTML = '<p class="fallback">The map library could not load. Check your internet connection and refresh. The calendar still works.</p>';
+    return;
+  }
+  map = L.map("map", { preferCanvas: true, zoomControl: true, attributionControl: true });
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(map);
+  map.fitBounds([[VIC.south, VIC.west], [VIC.north, VIC.east]]);
+  cellLayer = L.layerGroup().addTo(map);
+  setupDrawing();
+}
+
+function drawAOI() {
+  if (!mapOK()) return;
+  if (aoiLayer) map.removeLayer(aoiLayer);
+  const b = state.bbox;
+  aoiLayer = L.rectangle([[b.south, b.west], [b.north, b.east]], { color: "#17212B", weight: 1.5, dashArray: "5 4", fill: false, interactive: false }).addTo(map);
+}
+
+function mapRange() {
+  const { led, meta } = state;
+  if (state.selIdx != null) {
+    const ms = led.t0 + state.selIdx * DAY, d = new Date(ms).toISOString().slice(0, 10);
+    return { start: d, end: d, label: fullDate(ms) };
+  }
+  const firstMs = parseDay(meta.first_day), lastMs = parseDay(meta.last_day);
+  if (state.selYear != null) {
+    const a = Math.max(firstMs, Date.UTC(state.selYear, 0, 1)), b = Math.min(lastMs, Date.UTC(state.selYear, 11, 31));
+    return { start: new Date(a).toISOString().slice(0, 10), end: new Date(b).toISOString().slice(0, 10), label: String(state.selYear) };
+  }
+  return { start: meta.first_day, end: meta.last_day, label: "all years" };
+}
+
+async function loadCells() {
+  if (!state.meta || !state.led) return;
+  const rng = mapRange(), id = ++state.cellsReq, b = state.bbox;
+  $("#mapCaption").textContent = "Showing " + rng.label;
+  if (!mapOK()) return;
+  try {
+    const data = aggregateCells(rng, b);
+    if (id !== state.cellsReq) return; // a newer request has replaced this one
+    cellLayer.clearLayers();
+    const cap = p99(data.cells.map((c) => c[2]));
+    for (const [lat, lon, v] of data.cells) {
+      const rect = L.rectangle([[lat, lon], [lat + data.cell, lon + data.cell]], {
+        stroke: false, fillColor: heat(v, cap) || ZERO, fillOpacity: 0.88,
+      }).bindTooltip(fmtNum(v) + " detections", { sticky: true });
+      cellLayer.addLayer(rect);
+    }
+    $("#mapFoot").textContent = data.cells.length
+      ? "Each square is about " + Math.round(data.cell * 111) + " km across. Darker means more detections."
+      : "No detections in this area for this period.";
+  } catch (e) {
+    $("#mapFoot").textContent = "Couldn\u2019t load the map layer: " + e.message;
+  }
+}
+
+function dateOffset(date) {
+  return Math.round((parseDay(date) - parseDay(state.meta.first_day)) / DAY);
+}
+
+function inArea(row, b) {
+  const [, lat, lon] = row, half = state.meta.cell / 2;
+  return lat + half >= b.south && lat + half <= b.north &&
+    lon + half >= b.west && lon + half <= b.east;
+}
+
+function aggregateCells(rng, b) {
+  const start = dateOffset(rng.start), end = dateOffset(rng.end), sums = new Map();
+  for (const [day, lat, lon, activity] of state.data.rows) {
+    if (day < start || day > end || !inArea([day, lat, lon], b)) continue;
+    const key = lat + "," + lon;
+    sums.set(key, (sums.get(key) || 0) + activity);
+  }
+  return {
+    cell: state.meta.cell,
+    cells: Array.from(sums, ([key, value]) => {
+      const [lat, lon] = key.split(",").map(Number);
+      return [lat, lon, Math.round(value * 100) / 100];
+    }),
+  };
+}
+
+function calendarForArea(b) {
+  const rows = state.data.rows.filter((row) => inArea(row, b));
+  if (!rows.length) return { start: null, activity: [], z: [], flag: [] };
+  let first = Infinity, last = -Infinity;
+  for (const [day] of rows) { first = Math.min(first, day); last = Math.max(last, day); }
+  const activity = new Array(last - first + 1).fill(0);
+  for (const [day, , , value] of rows) activity[day - first] += value;
+  const doy = activity.map((_, i) => {
+    const date = new Date(parseDay(state.meta.first_day) + (first + i) * DAY);
+    const jan1 = Date.UTC(date.getUTCFullYear(), 0, 1);
+    return Math.min(365, Math.floor((date.getTime() - jan1) / DAY) + 1);
+  });
+  const z = new Array(activity.length).fill(0);
+  for (let d = 1; d <= 365; d++) {
+    const pool = [];
+    for (let i = 0; i < activity.length; i++) {
+      const wrapped = ((doy[i] - d + 182) % 365 + 365) % 365;
+      const dist = Math.abs(wrapped - 182);
+      if (dist <= 7) pool.push(activity[i]);
+    }
+    if (!pool.length) continue;
+    const mean = pool.reduce((sum, value) => sum + value, 0) / pool.length;
+    const variance = pool.reduce((sum, value) => sum + (value - mean) ** 2, 0) / pool.length;
+    const std = Math.sqrt(variance);
+    for (let i = 0; i < activity.length; i++) {
+      if (doy[i] === d && std > 0) z[i] = (activity[i] - mean) / std;
+    }
+  }
+  return {
+    start: new Date(parseDay(state.meta.first_day) + first * DAY).toISOString().slice(0, 10),
+    activity: activity.map((value) => Math.round(value * 100) / 100),
+    z: z.map((value) => Math.round(value * 100) / 100),
+    flag: z.map((value) => Number(value >= state.z)),
+  };
+}
+
+function setupDrawing() {
+  const btn = $("#draw");
+  let drawing = false, start = null, temp = null;
+  const set = (on) => {
+    drawing = on; btn.setAttribute("aria-pressed", String(on));
+    btn.textContent = on ? "Drag on the map to draw, or select to cancel" : "Draw an area on the map";
+    map.getContainer().style.cursor = on ? "crosshair" : "";
+    if (on) map.dragging.disable(); else map.dragging.enable();
+    if (!on && temp) { map.removeLayer(temp); temp = null; }
+  };
+  btn.addEventListener("click", () => set(!drawing));
+  map.on("mousedown", (e) => {
+    if (!drawing) return;
+    start = e.latlng;
+    temp = L.rectangle([start, start], { color: "#17212B", weight: 1.5, dashArray: "5 4", fillOpacity: 0.06 }).addTo(map);
+  });
+  map.on("mousemove", (e) => { if (drawing && start && temp) temp.setBounds(L.latLngBounds(start, e.latlng)); });
+  map.on("mouseup", (e) => {
+    if (!drawing || !start) return;
+    const b = L.latLngBounds(start, e.latlng); start = null; set(false);
+    if (b.getEast() - b.getWest() < 0.02 || b.getNorth() - b.getSouth() < 0.02) return;
+    setBBox({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() }, false);
+  });
+}
+
+/* ---------- loading + wiring ---------- */
+function setStatus(msg, isError) { const s = $("#status"); s.textContent = msg; s.className = isError ? "error" : ""; }
+
+function samebox(a, b) { return ["west", "south", "east", "north"].every((k) => Math.abs(a[k] - b[k]) < 1e-9); }
+
+function renderPresets() {
+  $("#presets").innerHTML = PRESETS.map((p, i) =>
+    '<button type="button" class="chip" data-i="' + i + '" aria-pressed="' + samebox(p.bbox, state.bbox) + '">' + esc(p.label) + "</button>").join("");
+}
+
+function setBBox(b, fit) {
+  state.bbox = b; state.selIdx = null; state.selYear = null;
+  renderPresets();
+  if (fit && mapOK()) map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [12, 12] });
+  loadArea();
+}
+
+async function loadArea() {
+  const b = state.bbox;
+  setStatus("Loading\u2026", false);
+  drawAOI();
+  try {
+    state.cal = calendarForArea(b);
+    state.led = state.cal.start ? buildLedger(state.cal) : null;
+    renderLedger(); renderPeriods();
+    setStatus(state.led ? "" : "No detections in this area. Try a larger area.", false);
+    if (state.led) loadCells(); else { if (cellLayer) cellLayer.clearLayers(); $("#mapCaption").textContent = ""; $("#mapFoot").textContent = ""; }
+  } catch (e) {
+    setStatus("Couldn\u2019t load the calendar: " + e.message, true);
+  }
+}
+
+function renderNotice(meta) {
+  const msgs = [];
+  const cal = meta.calibration && meta.calibration[0];
+  if (meta.n_years < 3)
+    msgs.push("Only " + meta.n_years + (meta.n_years === 1 ? " year" : " years") + " of data is loaded. Unusual-day flags compare each day with the same time of year in other years, so they need several years of history to mean anything.");
+  if (cal && cal.n_months < 12)
+    msgs.push("The scale between the two satellites is fitted on " + cal.n_months + (cal.n_months === 1 ? " month" : " months") + " of overlap. Treat this as a preview until the full archive is loaded.");
+  if (!meta.sources.includes("MODIS_scaled"))
+    msgs.push("Only VIIRS is used so far, which starts in 2012. Load MODIS data from 2000 to 2011 to extend the record back.");
+  const n = $("#notice");
+  n.hidden = !msgs.length;
+  n.innerHTML = msgs.map((m) => "<p>" + esc(m) + "</p>").join("");
+}
+
+function renderMethod(meta) {
+  const cal = meta.calibration && meta.calibration[0];
+  let fit = "";
+  if (cal) {
+    fit = " We fitted a scale factor of " + cal.k.toFixed(2) + " on " + cal.n_months + (cal.n_months === 1 ? " month" : " months") +
+      " when both satellites were flying" + (cal.r2 != null ? " (R\u00b2 " + cal.r2.toFixed(2) + ")" : "") +
+      " and used it to scale MODIS counts before VIIRS launched on 20 January 2012.";
+  }
+  const conf = cal && cal.metric === "n_all" ? "All detections are counted." : "Only nominal and high confidence detections are counted.";
+  $("#method").innerHTML = "<h2 id=\"h-method\">How this is built</h2>" +
+    "<p>MODIS sees the ground in 1 km pixels and VIIRS in 375 m pixels, so VIIRS records several times more detections for the same fires. To compare years fairly, everything is expressed in VIIRS-equivalent detections." + fit + " " + conf + "</p>" +
+    "<p>A day is flagged as unusual when its total is at least " + state.z + " standard deviations above the typical level for that time of year, using the same dates (plus or minus a week) in every year loaded.</p>" +
+    "<p>Data: NASA FIRMS active fire detections (MODIS Collection 6.1 and VIIRS S-NPP).</p>";
+}
+
+async function init() {
+  wireLedger();
+  initMap();
+  renderPresets();
+  $("#presets").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button.chip");
+    if (b) setBBox(PRESETS[Number(b.dataset.i)].bbox, true);
+  });
+  $("#sens").addEventListener("change", (ev) => { state.z = Number(ev.target.value); renderMethod(state.meta); loadArea(); });
+  $("#periods").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button[data-peak]");
+    if (!b) return;
+    state.selIdx = Number(b.dataset.peak); state.selYear = null;
+    afterSelection();
+    $("#map").scrollIntoView({ block: "nearest" });
+  });
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => {
+      const w = $("#ledger").clientWidth;
+      if (state.cal && Math.abs(w - state.lastWidth) > 2) renderLedger();
+    }).observe($("#ledger"));
+  }
+  try {
+    const res = await fetch("data.json");
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    state.data = await res.json();
+    state.meta = state.data.meta;
+    renderNotice(state.meta); renderMethod(state.meta);
+    loadArea();
+  } catch (e) {
+    setStatus("Couldn\u2019t load the data: " + e.message, true);
+  }
+}
+init();
+</script>
+</body>
+</html>
